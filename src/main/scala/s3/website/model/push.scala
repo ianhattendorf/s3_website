@@ -113,9 +113,19 @@ case class Upload(originalFile: File, uploadType: UploadType)(implicit site: Sit
           logger.debug(s"Gzipping file ${originalFile.getName}")
           val tempFile = createTempFile(originalFile.getName, "gzip")
           tempFile.deleteOnExit()
-          using(new GZIPOutputStream(new FileOutputStream(tempFile))) { stream =>
-            IOUtils.copy(fis(originalFile), stream)
+          // 8 * 1024 * 1024 results in heap out of memory
+          val zopfli = new ru.eustas.zopfli.Zopfli(1 * 1024 * 1024)
+          val options = new ru.eustas.zopfli.Options()
+          val arr = IOUtils.toByteArray(fis(originalFile))
+          val compressed = zopfli.compress(options, arr)
+          using(new FileOutputStream(tempFile)) { stream =>
+            using (new ByteArrayInputStream(arr)) { byteStream =>
+              IOUtils.copy(byteStream, stream)
+            }
           }
+//          using(new GZIPOutputStream(new FileOutputStream(tempFile))) { stream =>
+//            IOUtils.copy(fis(originalFile), stream)
+//          }
           tempFile
         }
       }
